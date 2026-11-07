@@ -1,0 +1,243 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Same-Origin Library Test</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Calibri, Arial, sans-serif;
+    background: #f5f5f5;
+    color: #3D3D3D;
+    padding: 24px;
+  }
+  h1 {
+    font-family: Arial, sans-serif;
+    color: #4F2170;
+    margin-bottom: 4px;
+    font-size: 1.5rem;
+  }
+  .subtitle {
+    color: #777;
+    margin-bottom: 24px;
+    font-size: 0.85rem;
+  }
+  .card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .card h2 {
+    font-size: 1rem;
+    color: #4F2170;
+    margin-bottom: 12px;
+    border-bottom: 2px solid #E18719;
+    padding-bottom: 6px;
+  }
+  .test-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+    font-size: 0.9rem;
+  }
+  .test-row:last-child { border-bottom: none; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #fff;
+  }
+  .badge.pass { background: #287819; }
+  .badge.fail { background: #A52323; }
+  .badge.warn { background: #E18719; }
+  .summary-bar {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 6px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 1rem;
+  }
+  .summary-bar.all-pass { background: #e8f5e3; color: #287819; }
+  .summary-bar.has-fail { background: #fde8e8; color: #A52323; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  .instructions {
+    background: #f0ebf5;
+    border-left: 4px solid #4F2170;
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: 0 8px 8px 0;
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+  .instructions code {
+    background: #e0d6ea;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.85em;
+  }
+</style>
+</head>
+<body>
+
+<h1>Same-Origin Library Test</h1>
+<p class="subtitle">Tests whether SharePoint allows loading JS files from the same Document Library.</p>
+
+<div class="instructions">
+  <strong>Setup — upload these files to the same Document Library folder:</strong><br>
+  <code>libs/chart.js</code> — download from
+    <code>https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js</code><br>
+  <code>libs/apexcharts.js</code> — download from
+    <code>https://cdn.jsdelivr.net/npm/apexcharts@3/dist/apexcharts.min.js</code><br>
+  <code>libs/test-helper.js</code> — a tiny file you create (see below)<br>
+  <code>same-origin-test.html</code> — this file<br><br>
+  <strong>Create <code>libs/test-helper.js</code></strong> with this content:<br>
+  <code>window.__SP_SAME_ORIGIN_OK = true;</code>
+</div>
+
+<!-- Charts -->
+<div class="grid">
+  <div class="card">
+    <h2>Chart.js (same-origin)</h2>
+    <canvas id="chartjs-canvas" height="220"></canvas>
+  </div>
+  <div class="card">
+    <h2>ApexCharts (same-origin)</h2>
+    <div id="apex-chart" style="min-height:220px;"></div>
+  </div>
+</div>
+
+<!-- Diagnostics -->
+<div class="card">
+  <h2>Diagnostic Results</h2>
+  <div id="test-list"></div>
+  <div id="summary-bar" class="summary-bar" style="display:none;"></div>
+</div>
+
+<!-- Load from same-origin relative paths -->
+<script src="libs/test-helper.js"></script>
+<script src="libs/chart.js"></script>
+<script src="libs/apexcharts.js"></script>
+
+<script>
+(function () {
+  var testList = document.getElementById('test-list');
+  var results = [];
+
+  function addTest(name, status, detail) {
+    results.push({ name: name, status: status });
+    var row = document.createElement('div');
+    row.className = 'test-row';
+    row.innerHTML =
+      '<span>' + name +
+      (detail ? ' <span style="color:#999;font-size:0.8rem;">— ' + detail + '</span>' : '') +
+      '</span><span class="badge ' + status + '">' + status.toUpperCase() + '</span>';
+    testList.appendChild(row);
+  }
+
+  function showSummary() {
+    var bar = document.getElementById('summary-bar');
+    var fails = results.filter(function (r) { return r.status === 'fail'; }).length;
+    bar.style.display = 'block';
+    if (fails === 0) {
+      bar.className = 'summary-bar all-pass';
+      bar.textContent = 'All passed — same-origin loading works. You can share libraries across SPAs.';
+    } else {
+      bar.className = 'summary-bar has-fail';
+      bar.textContent = fails + ' check(s) failed — same-origin scripts may be blocked. Consider Option 1 (inline bundling).';
+    }
+  }
+
+  // ── Test 1: Protocol ──
+  var proto = location.protocol;
+  if (proto === 'https:') {
+    addTest('Protocol', 'pass', 'HTTPS');
+  } else if (proto === 'http:') {
+    addTest('Protocol', 'warn', 'HTTP');
+  } else {
+    addTest('Protocol', 'warn', proto);
+  }
+
+  // ── Test 2: Inline script execution ──
+  addTest('Inline script execution', 'pass', 'Running');
+
+  // ── Test 3: Same-origin script loading (test-helper.js) ──
+  if (window.__SP_SAME_ORIGIN_OK === true) {
+    addTest('Same-origin script loading', 'pass', 'libs/test-helper.js loaded and executed');
+  } else {
+    addTest('Same-origin script loading', 'fail', 'libs/test-helper.js did not execute — CSP may block same-origin scripts too');
+  }
+
+  // ── Test 4: Chart.js ──
+  if (typeof Chart !== 'undefined') {
+    addTest('Chart.js (same-origin)', 'pass', 'v' + Chart.version);
+  } else {
+    addTest('Chart.js (same-origin)', 'fail', 'Not loaded');
+  }
+
+  // ── Test 5: ApexCharts ──
+  if (typeof ApexCharts !== 'undefined') {
+    addTest('ApexCharts (same-origin)', 'pass', 'Loaded');
+  } else {
+    addTest('ApexCharts (same-origin)', 'fail', 'Not loaded');
+  }
+
+  // ── Render Chart.js ──
+  try {
+    if (typeof Chart !== 'undefined') {
+      var ctx = document.getElementById('chartjs-canvas').getContext('2d');
+      new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Alpha', 'Beta', 'Gamma', 'Delta'],
+          datasets: [{
+            data: [35, 25, 22, 18],
+            backgroundColor: ['#4F2170', '#E18719', '#287819', '#2D6EAA']
+          }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+      });
+      addTest('Chart.js rendering', 'pass', 'Doughnut chart drawn');
+    }
+  } catch (e) {
+    addTest('Chart.js rendering', 'fail', e.message);
+  }
+
+  // ── Render ApexCharts ──
+  try {
+    if (typeof ApexCharts !== 'undefined') {
+      var chart = new ApexCharts(document.getElementById('apex-chart'), {
+        chart: { type: 'area', height: 220, toolbar: { show: false } },
+        series: [{ name: 'Series A', data: [15, 28, 20, 35, 25, 40] }],
+        xaxis: { categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'] },
+        colors: ['#4F2170'],
+        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.5, opacityTo: 0.1 } },
+        stroke: { width: 3, curve: 'smooth' }
+      });
+      chart.render();
+      addTest('ApexCharts rendering', 'pass', 'Area chart drawn');
+    }
+  } catch (e) {
+    addTest('ApexCharts rendering', 'fail', e.message);
+  }
+
+  showSummary();
+})();
+</script>
+
+</body>
+</html>
